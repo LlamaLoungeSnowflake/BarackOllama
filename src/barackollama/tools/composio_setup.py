@@ -1,10 +1,10 @@
 from composio_crewai import CrewAIProvider
 from composio import Composio
 
-def get_github_tools():
+def get_github_tools(github_handle: str):
     composio = Composio(provider=CrewAIProvider())
     session = composio.create(
-        user_id="Shreyas-Yadav",
+        user_id=github_handle,
         toolkits=["github"]
     )
     tools = session.tools()

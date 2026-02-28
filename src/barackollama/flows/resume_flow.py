@@ -122,7 +122,7 @@ class ResumeFlow(Flow[ResumeFlowState]):
             print("No assets to deploy")
             return
 
-        deployment_crew = create_deployment_crew()
+        deployment_crew = create_deployment_crew(self.state.github_handle)
         
         result = deployment_crew.kickoff(inputs={
             "github_readme_markdown": self.state.github_profile_markdown,

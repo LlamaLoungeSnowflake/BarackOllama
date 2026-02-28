@@ -42,9 +42,9 @@ class GitHubScrapeFlow(Flow[GitHubScrapeFlowState]):
             
         return self.state.repositories
 
-    def analyze_single_repo(self, repo_name: str) -> dict:
+    def analyze_single_repo(self, repo_name: str, github_tools) -> dict:
         print(f"Starting analysis for {repo_name}...")
-        crew = create_repo_analysis_crew()
+        crew = create_repo_analysis_crew(github_tools=github_tools)
         
         try:
             result = crew.kickoff(inputs={
@@ -72,11 +72,14 @@ class GitHubScrapeFlow(Flow[GitHubScrapeFlowState]):
         max_workers = int(os.getenv("GITHUB_SCRAPE_CONCURRENCY", "5"))
         print(f"Starting parallel analysis using {max_workers} threads...")
         
+        from barackollama.tools.composio_setup import get_github_tools
+        shared_github_tools = get_github_tools(self.state.github_handle)
+        
         analyzed_results = []
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all repo tasks
-            future_to_repo = {executor.submit(self.analyze_single_repo, repo_name): repo_name for repo_name in self.state.repositories}
+            future_to_repo = {executor.submit(self.analyze_single_repo, repo_name, shared_github_tools): repo_name for repo_name in self.state.repositories}
             
             # Process as they complete
             for future in as_completed(future_to_repo):

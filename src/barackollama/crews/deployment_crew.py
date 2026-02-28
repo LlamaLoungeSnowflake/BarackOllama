@@ -7,10 +7,10 @@ class DeployResult(BaseModel):
     github_profile_url: str = Field(description="URL to the created GitHub profile repository")
     portfolio_website_url: str = Field(description="URL to the created GitHub pages static website repository")
 
-def create_deployment_crew() -> Crew:
+def create_deployment_crew(github_handle: str) -> Crew:
     """
-    Creates the Deployment Crew responsible for taking the generated Markdown and HTML
-    and using Composio GitHub tools to create the repositories and push the code.
+    Creates the Deployment Crew.
+    This crew pushes the final assets to GitHub using Composio.
     """
     llm = LLM(
         model=os.getenv("OPENROUTER_MODEL", "openrouter/minimax/minimax-m2.5"),
@@ -27,7 +27,7 @@ def create_deployment_crew() -> Crew:
             "and push them to the correct GitHub repositories via the Composio API."
         ),
         verbose=True,
-        tools=get_github_tools(),
+        tools=get_github_tools(github_handle),
         llm=llm
     )
     

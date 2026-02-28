@@ -12,11 +12,14 @@ class RepoAnalysisResult(BaseModel):
     updated_at: str = Field(description="The last updated timestamp retrieved from GitHub metadata, formatted as ISO string. If unavailable, return an empty string.")
 
 
-def create_repo_analysis_crew() -> Crew:
+def create_repo_analysis_crew(github_handle: str = None, github_tools=None) -> Crew:
     """
     Creates a Crew explicitly for analyzing a single GitHub repository.
     Includes the Inspector, Enhancer, and Judge agents.
     """
+    if github_tools is None and github_handle is not None:
+        github_tools = get_github_tools(github_handle)
+
     llm = LLM(
         model=os.getenv("OPENROUTER_MODEL", "openrouter/minimax/minimax-m2.5"),
         base_url="https://openrouter.ai/api/v1",
@@ -31,7 +34,7 @@ def create_repo_analysis_crew() -> Crew:
             "into repositories, extracting core purpose, logic, languages, and technical frameworks used."
         ),
         verbose=True,
-        tools=get_github_tools(),
+        tools=github_tools,
         llm=llm
     )
 
