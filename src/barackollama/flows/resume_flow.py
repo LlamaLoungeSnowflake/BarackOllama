@@ -25,6 +25,7 @@ class ResumeFlowState(BaseModel):
     portfolio_website_url: str = ""
     resume_html: str = ""
     resume_pdf_path: str = ""
+    portfolio_repo_name: str = ""
 
 class ResumeFlow(Flow[ResumeFlowState]):
     """
@@ -92,10 +93,18 @@ class ResumeFlow(Flow[ResumeFlowState]):
         resume_crew = create_resume_crew()
         
         # Determine URLs predictably since deployment hasn't happened yet
+        if not self.state.portfolio_repo_name:
+            import re
+            import time
+            match = re.search(r'/view/(\d+)', self.state.job_url)
+            job_id = match.group(1) if match else "job"
+            timestamp = int(time.time()) % 100000
+            self.state.portfolio_repo_name = f"custom-portfolio-{job_id}-{timestamp}"
+
         if not self.state.github_profile_url:
             self.state.github_profile_url = f"https://github.com/{self.state.github_handle}/{self.state.github_handle}"
         if not self.state.portfolio_website_url:
-            self.state.portfolio_website_url = f"https://github.com/{self.state.github_handle}/custom-portfolio"
+            self.state.portfolio_website_url = f"https://github.com/{self.state.github_handle}/{self.state.portfolio_repo_name}"
             
         result = resume_crew.kickoff(inputs={
             "job_listing_data": str(self.state.job_listing_data),
@@ -128,7 +137,8 @@ class ResumeFlow(Flow[ResumeFlowState]):
             "github_readme_markdown": self.state.github_profile_markdown,
             "portfolio_website_code": self.state.portfolio_website_code,
             "resume_html": self.state.resume_html,
-            "github_handle": self.state.github_handle
+            "github_handle": self.state.github_handle,
+            "portfolio_repo_name": self.state.portfolio_repo_name
         })
         
         try:

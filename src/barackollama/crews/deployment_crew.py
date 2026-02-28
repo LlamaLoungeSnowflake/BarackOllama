@@ -40,10 +40,11 @@ def create_deployment_crew(github_handle: str) -> Crew:
             "Readme Markdown Content: {github_readme_markdown}\n"
             "Portfolio HTML Content: {portfolio_website_code}\n"
             "HTML Resume Content: {resume_html}\n"
-            "Username Target: {github_handle}\n\n"
+            "Username Target: {github_handle}\n"
+            "Portfolio Repo Name: {portfolio_repo_name}\n\n"
             "Your task is to use your GitHub tools to:\n"
             "1. Create/Update a repository named '{github_handle}' and push the README.md to the main branch.\n"
-            "2. Create a repository named 'custom-portfolio' and push the HTML code as 'index.html'. Also push the HTML Resume content to this repository as 'resume.html'.\n"
+            "2. Create a repository named '{portfolio_repo_name}' and push the HTML code as 'index.html'. Also push the HTML Resume content to this repository as 'resume.html'.\n"
             "Return the URLs of all created/updated repositories."
         ),
         expected_output="A JSON object containing the URLs to the newly created repositories.",
