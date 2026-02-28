@@ -2,6 +2,10 @@
 
 import { useState } from 'react'
 import type { ResumeOutput } from '@/types/resume'
+import { useIndexedDB } from './useIndexedDB'
+
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
 export type ConversationState = 'waiting_github' | 'waiting_linkedin' | 'waiting_job' | 'generating' | 'done' | 'error'
 
@@ -43,6 +47,11 @@ const AGENT_TOOLS = [
   'portfolio_generate',
   'job_search',
 ]
+
+// Number of tools handled by preprocessing steps (linkedin + github)
+const PREPROCESS_TOOLS_COUNT = 2
+// Delay between animating each generation step while the API call is in-flight
+const STEP_ANIMATION_DELAY_MS = 2000
 
 
 
@@ -113,6 +122,7 @@ export function useResumeAgent() {
   const [conversationState, setConversationState] = useState<ConversationState>('waiting_github')
   const [isTyping, setIsTyping] = useState(false)
   const [urls, setUrls] = useState({ github: '', linkedin: '', job: '' })
+  const { saveLinkedInData, saveGithubData } = useIndexedDB()
 
   async function botSay(msg: Omit<ChatMsg, 'id' | 'role'>) {
     setIsTyping(true)
@@ -121,7 +131,7 @@ export function useResumeAgent() {
     setMessages((prev) => [...prev, { ...msg, id: uid(), role: 'bot' }])
   }
 
-  async function runMockAgent() {
+  async function runMockAgentDev() {
     const progressId = uid()
     setMessages((prev) => [
       ...prev,
@@ -166,6 +176,124 @@ export function useResumeAgent() {
     setConversationState('done')
   }
 
+  async function runRealAgent(githubUrl: string, linkedinUrl: string, jobUrl: string) {
+    const progressId = uid()
+    setMessages((prev) => [
+      ...prev,
+      { id: progressId, role: 'bot', type: 'progress', steps: [] },
+    ])
+
+    const addStep = (tool: string, status: ProgressStep['status']) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === progressId
+            ? {
+                ...msg,
+                steps: [
+                  ...(msg.steps ?? []),
+                  { tool, status, message: AGENT_TOOL_LABELS[tool] ?? tool },
+                ],
+              }
+            : msg,
+        ),
+      )
+    }
+
+    const updateStep = (tool: string, status: ProgressStep['status']) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === progressId
+            ? {
+                ...msg,
+                steps: (msg.steps ?? []).map((s) =>
+                  s.tool === tool ? { ...s, status } : s,
+                ),
+              }
+            : msg,
+        ),
+      )
+    }
+
+    try {
+      const githubHandle = new URL(githubUrl).pathname.replace(/^\//, '').split('/')[0]
+
+      // Step 1: LinkedIn preprocessing
+      addStep('brightdata_linkedin', 'running')
+      const linkedinRes = await fetch(`${API_BASE}/api/preprocess/linkedin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedin_url: linkedinUrl }),
+      })
+      if (!linkedinRes.ok) throw new Error(`LinkedIn preprocess failed: ${linkedinRes.statusText}`)
+      const { profile_json } = await linkedinRes.json()
+      await saveLinkedInData(profile_json)
+      updateStep('brightdata_linkedin', 'done')
+
+      // Step 2: GitHub preprocessing
+      addStep('composio_github', 'running')
+      const githubRes = await fetch(`${API_BASE}/api/preprocess/github`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ github_handle: githubHandle }),
+      })
+      if (!githubRes.ok) throw new Error(`GitHub preprocess failed: ${githubRes.statusText}`)
+      const { repos_markdown } = await githubRes.json()
+      await saveGithubData(repos_markdown)
+      updateStep('composio_github', 'done')
+
+      // Step 3: Generation — show remaining steps one by one while waiting
+      const remainingTools = AGENT_TOOLS.slice(PREPROCESS_TOOLS_COUNT) // crewai_extract onwards
+      addStep('crewai_extract', 'running')
+
+      const generatePromise = fetch(`${API_BASE}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedin_json: profile_json, repos_markdown, job_url: jobUrl, github_handle: githubHandle }),
+      })
+
+      // Show remaining steps with delays while generation runs
+      for (let i = 1; i < remainingTools.length; i++) {
+        await delay(STEP_ANIMATION_DELAY_MS)
+        updateStep(remainingTools[i - 1], 'done')
+        addStep(remainingTools[i], 'running')
+      }
+
+      const generateRes = await generatePromise
+      if (!generateRes.ok) throw new Error(`Generation failed: ${generateRes.statusText}`)
+      const { result } = await generateRes.json()
+
+      // Mark last step as done
+      updateStep(remainingTools[remainingTools.length - 1], 'done')
+
+      const output: ResumeOutput = {
+        latex: result,
+        markdown: result,
+        webpageHtml: '',
+        jobSuggestions: [],
+        skillsMatch: [],
+      }
+
+      await delay(500)
+      setMessages((prev) => [
+        ...prev,
+        { id: uid(), role: 'bot', type: 'output', output },
+      ])
+      setConversationState('done')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: uid(),
+          role: 'bot',
+          type: 'text',
+          content: `❌ Something went wrong: ${message}. Please try again.`,
+        },
+      ])
+      setConversationState('error')
+    }
+  }
+
   async function sendMessage(text: string) {
     if (!text.trim()) return
 
@@ -205,7 +333,11 @@ export function useResumeAgent() {
       setUrls((prev) => ({ ...prev, job: text.trim() }))
       setConversationState('generating')
       await botSay({ type: 'text', content: '🚀 Got everything! Starting resume generation...' })
-      await runMockAgent()
+      if (USE_MOCK) {
+        await runMockAgentDev()
+      } else {
+        await runRealAgent(urls.github, urls.linkedin, text.trim())
+      }
     }
   }
 

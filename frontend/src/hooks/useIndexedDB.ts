@@ -33,5 +33,13 @@ export function useIndexedDB() {
     await dbClear()
   }, [])
 
-  return { saveLinkedInData, saveGithubData, loadCachedData, clearCache }
+  const hasCachedData = useCallback(async (): Promise<boolean> => {
+    const [linkedin, github] = await Promise.all([
+      dbGet<object>(LINKEDIN_KEY),
+      dbGet<string>(GITHUB_KEY),
+    ])
+    return linkedin !== null && linkedin !== undefined && github !== null && github !== undefined
+  }, [])
+
+  return { saveLinkedInData, saveGithubData, loadCachedData, clearCache, hasCachedData }
 }
