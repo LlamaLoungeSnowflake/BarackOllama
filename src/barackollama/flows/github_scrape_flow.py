@@ -43,6 +43,27 @@ class GitHubScrapeFlow(Flow[GitHubScrapeFlowState]):
         return self.state.repositories
 
     def analyze_single_repo(self, repo_name: str, github_tools) -> dict:
+        import os
+        import json
+        
+        cache_dir = os.path.join("output", "cache")
+        safe_repo_name = repo_name.replace("/", "_").replace("\\", "_")
+        cache_file = os.path.join(cache_dir, f"{self.state.github_handle}_{safe_repo_name}.json")
+        
+        # Best-effort caching directory creation
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+        except Exception as e:
+            print(f"Warning: Could not create cache directory for {repo_name} ({e}). Caching disabled.")
+        
+        if os.path.exists(cache_file):
+            print(f"Cache hit for {repo_name}. Loading from {cache_file}...")
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"Failed to read cache for {repo_name}: {e}. Retrying analysis...")
+
         print(f"Starting analysis for {repo_name}...")
         crew = create_repo_analysis_crew(github_tools=github_tools)
         
@@ -54,7 +75,13 @@ class GitHubScrapeFlow(Flow[GitHubScrapeFlowState]):
             
             output = result.pydantic
             if output:
-                return output.model_dump()
+                data = output.model_dump()
+                try:
+                    with open(cache_file, "w", encoding="utf-8") as f:
+                        json.dump(data, f, indent=4)
+                except Exception as write_e:
+                    print(f"Warning (Non-Fatal): Failed to write cache for {repo_name}: {write_e}")
+                return data
             else:
                 print(f"Warning: Did not get Pydantic output for {repo_name}")
                 return None
