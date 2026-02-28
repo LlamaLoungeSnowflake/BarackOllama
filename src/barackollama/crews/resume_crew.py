@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from crewai import Agent, Task, Crew, LLM
 
 class ResumeResult(BaseModel):
-    resume_markdown: str = Field(description="The complete highly tailored Markdown resume")
+    resume_html: str = Field(description="The complete, fully styled HTML and CSS string representing the resume")
 
 def create_resume_crew() -> Crew:
     """
@@ -31,18 +31,20 @@ def create_resume_crew() -> Crew:
     
     generate_resume_task = Task(
         description=(
-            "Generate a highly customized, professional resume in Markdown format.\n"
+            "Generate a highly customized, professional resume in a single self-contained HTML file.\n"
+            "It must include embedded CSS styling that is optimized for printing to PDF (use @page rules for A4/Letter size, "
+            "ensure modern fonts, clear section headers, horizontal dividers, and excellent whitespace).\n"
             "It must be tailored directly to this job listing summary: {job_listing_data}\n\n"
             "Incorporate the following information intelligently:\n"
             "1. Candidate Background (from LinkedIn): {linkedin_profile}\n"
             "2. Relevant Projects (Ranked Repositories): {ranked_repos}\n"
-            "3. Include links to the candidate's newly generated artifacts:\n"
+            "3. Include interactive hyperlinks to the candidate's newly generated artifacts:\n"
             "   - GitHub Profile: {github_profile_url}\n"
             "   - Portfolio Website: {portfolio_website_url}\n\n"
             "Ensure the tone is professional, achievement-oriented, and heavily utilizes "
             "the keywords implied by the job listing."
         ),
-        expected_output="The full customized resume in Markdown string format.",
+        expected_output="The full customized resume as a highly styled, print-ready HTML string.",
         agent=resume_writer_agent,
         output_pydantic=ResumeResult
     )

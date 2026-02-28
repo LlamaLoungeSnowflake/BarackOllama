@@ -20,10 +20,11 @@ def create_deployment_crew() -> Crew:
     
     deployment_agent = Agent(
         role="DevOps & GitHub Manager",
-        goal="Automate the creation of GitHub repositories and deployment of code/assets.",
+        goal="Seamlessly deploy generated portfolio assets, markdown files, and HTML resumes to GitHub repositories.",
         backstory=(
-            "You are an expert platform engineer who leverages GitHub APIs to "
-            "programmatically create repositories, commit code, and configure GitHub Pages."
+            "You are a DevOps and Deployment expert. Your job is to take the final generated "
+            "Markdown README, HTML portfolio websites, and now the HTML string of the candidate's resume, "
+            "and push them to the correct GitHub repositories via the Composio API."
         ),
         verbose=True,
         tools=get_github_tools(),
@@ -34,14 +35,16 @@ def create_deployment_crew() -> Crew:
         description=(
             "You have been provided with two assets:\n"
             "1. A personalized GitHub Profile README markdown.\n"
-            "2. The HTML/Tailwind CSS code for a static portfolio website.\n\n"
+            "2. The HTML/Tailwind CSS code for a static portfolio website.\n"
+            "3. The final generated HTML Resume string.\n\n"
             "Readme Markdown Content: {github_readme_markdown}\n"
             "Portfolio HTML Content: {portfolio_website_code}\n"
+            "HTML Resume Content: {resume_html}\n"
             "Username Target: {github_handle}\n\n"
             "Your task is to use your GitHub tools to:\n"
             "1. Create/Update a repository named '{github_handle}' and push the README.md to the main branch.\n"
-            "2. Create a repository named 'custom-portfolio' and push the HTML code as 'index.html'.\n"
-            "Return the URLs of both repositories."
+            "2. Create a repository named 'custom-portfolio' and push the HTML code as 'index.html'. Also push the HTML Resume content to this repository as 'resume.html'.\n"
+            "Return the URLs of all created/updated repositories."
         ),
         expected_output="A JSON object containing the URLs to the newly created repositories.",
         agent=deployment_agent,

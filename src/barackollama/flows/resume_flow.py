@@ -1,4 +1,6 @@
+import os
 from pydantic import BaseModel
+from weasyprint import HTML
 from crewai.flow.flow import Flow, listen, start
 from barackollama.crews.research_crew import create_research_crew, KeywordExtractionResult, RankedReposResult
 from barackollama.crews.content_crew import create_content_crew, GeneratedContentResult
@@ -21,7 +23,8 @@ class ResumeFlowState(BaseModel):
     portfolio_website_code: str = ""
     github_profile_url: str = ""
     portfolio_website_url: str = ""
-    resume_markdown: str = ""
+    resume_html: str = ""
+    resume_pdf_path: str = ""
 
 class ResumeFlow(Flow[ResumeFlowState]):
     """
@@ -83,7 +86,7 @@ class ResumeFlow(Flow[ResumeFlowState]):
         except Exception as e:
             print(f"Asset Generation parsing warning: {e}")
 
-    @listen(generate_assets)
+    @listen(generate_resume_html)
     def deploy_assets(self):
         print("Deploying assets to GitHub via Composio...")
         if not self.state.github_profile_markdown:
@@ -95,6 +98,7 @@ class ResumeFlow(Flow[ResumeFlowState]):
         result = deployment_crew.kickoff(inputs={
             "github_readme_markdown": self.state.github_profile_markdown,
             "portfolio_website_code": self.state.portfolio_website_code,
+            "resume_html": self.state.resume_html,
             "github_handle": self.state.github_handle
         })
         
@@ -108,9 +112,9 @@ class ResumeFlow(Flow[ResumeFlowState]):
         except Exception as e:
              print(f"Deploy parsing warning: {e}")
 
-    @listen(deploy_assets)
-    def generate_resume(self):
-        print("Generating final highly-tailored resume...")
+    @listen(generate_assets)
+    def generate_resume_html(self):
+        print("Generating final highly-tailored resume in HTML...")
         resume_crew = create_resume_crew()
         
         result = resume_crew.kickoff(inputs={
@@ -124,14 +128,38 @@ class ResumeFlow(Flow[ResumeFlowState]):
         try:
             resume_output = result.pydantic
             if resume_output:
-                self.state.resume_markdown = resume_output.resume_markdown
+                self.state.resume_html = resume_output.resume_html
             else:
-                self.state.resume_markdown = result.raw
+                self.state.resume_html = result.raw
         except Exception as e:
             print(f"Resume parsing warning: {e}")
-            self.state.resume_markdown = result.raw
+            self.state.resume_html = result.raw
+
+    @listen(generate_resume_html)
+    def compile_pdf(self):
+        print("Compiling HTML to PDF using WeasyPrint...")
+        output_dir = "output"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        html_path = os.path.join(output_dir, "resume.html")
+        pdf_path = os.path.join(output_dir, "resume.pdf")
+        
+        # Write the HTML output for inspection
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(self.state.resume_html)
             
-        return self.state.resume_markdown
+        print(f"Saved intermediate HTML to {html_path}")
+        
+        # Compile the PDF
+        try:
+            HTML(string=self.state.resume_html).write_pdf(pdf_path)
+            self.state.resume_pdf_path = pdf_path
+            print(f"✅ Successfully compiled PDF to {pdf_path}")
+        except Exception as e:
+            print(f"❌ Failed to compile PDF: {e}")
+            self.state.resume_pdf_path = ""
+            
+        return self.state.resume_pdf_path
 
 def kickoff_resume_flow(linkedin: str, repos: str, job_url: str, github_handle: str):
     flow = ResumeFlow()
