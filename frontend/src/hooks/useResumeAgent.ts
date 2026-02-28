@@ -260,15 +260,15 @@ export function useResumeAgent() {
 
       const generateRes = await generatePromise
       if (!generateRes.ok) throw new Error(`Generation failed: ${generateRes.statusText}`)
-      const { result } = await generateRes.json()
+      const genData = await generateRes.json()
 
       // Mark last step as done
       updateStep(remainingTools[remainingTools.length - 1], 'done')
 
       const output: ResumeOutput = {
-        latex: result,
-        markdown: result,
-        webpageHtml: '',
+        latex: genData.resume_html ?? '',
+        markdown: genData.github_profile_markdown ?? '',
+        webpageHtml: genData.portfolio_website_code ?? '',
         jobSuggestions: [],
         skillsMatch: [],
       }
