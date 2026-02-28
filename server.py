@@ -74,7 +74,15 @@ def generate(request: GenerateRequest):
             request.job_url,
             request.github_handle,
         )
-        return {"status": "ok", "result": str(result)}
+        return {
+            "status": "ok",
+            "resume_html": result.get("resume_html", ""),
+            "github_profile_markdown": result.get("github_profile_markdown", ""),
+            "portfolio_website_code": result.get("portfolio_website_code", ""),
+            "github_profile_url": result.get("github_profile_url", ""),
+            "portfolio_website_url": result.get("portfolio_website_url", ""),
+            "resume_pdf_path": result.get("resume_pdf_path", ""),
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

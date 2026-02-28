@@ -185,13 +185,21 @@ class ResumeFlow(Flow[ResumeFlowState]):
 
 def kickoff_resume_flow(linkedin: str, repos: str, job_url: str, github_handle: str):
     flow = ResumeFlow()
-    # Initialize state inputs before running
     flow.state.linkedin_profile = linkedin
     flow.state.github_repos = repos
     flow.state.job_url = job_url
     flow.state.github_handle = github_handle
     
-    final_resume = flow.kickoff()
+    flow.kickoff()
+
+    result = {
+        "resume_html": flow.state.resume_html or "",
+        "resume_pdf_path": flow.state.resume_pdf_path or "",
+        "github_profile_markdown": flow.state.github_profile_markdown or "",
+        "portfolio_website_code": flow.state.portfolio_website_code or "",
+        "github_profile_url": flow.state.github_profile_url or "",
+        "portfolio_website_url": flow.state.portfolio_website_url or "",
+    }
     print("========= FINAL RESUME =========")
-    print(final_resume)
-    return final_resume
+    print(result.get("resume_html", "")[:200])
+    return result
