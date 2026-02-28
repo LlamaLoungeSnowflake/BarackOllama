@@ -29,16 +29,26 @@ This guide covers how to set up the BarackOllama Custom Resume CrewAI Flow local
    - `BRIGHTDATA_API_TOKEN` & `BRIGHTDATA_JOB_DATASET_ID`
    - _Optional:_ `OPENROUTER_MODEL` (Defaults to `openrouter/minimax/minimax-m2.5`)
 
-3. **Install dependencies:**
+3. **Install system dependencies (macOS):**
+   WeasyPrint (used for PDF generation) requires Pango and GLib system libraries. Install them via Homebrew:
+   ```bash
+   brew install pango
+   ```
+   > **Note:** Without this, you will see an `OSError: cannot load library 'libgobject-2.0-0'` error when running the flow. Then run with the library path set:
+   > ```bash
+   > DYLD_LIBRARY_PATH=/opt/homebrew/lib:$DYLD_LIBRARY_PATH uv run main.py
+   > ```
+
+4. **Install dependencies:**
    Using `uv`, sync the dependencies to create your virtual environment.
    ```bash
    uv sync
    ```
 
-4. **Run the flow locally:**
+5. **Run the flow locally:**
    The primary entry point is `main.py`, which triggers the `ResumeFlow`.
    ```bash
-   uv run main.py
+   DYLD_LIBRARY_PATH=/opt/homebrew/lib:$DYLD_LIBRARY_PATH uv run main.py
    ```
 
 ---
