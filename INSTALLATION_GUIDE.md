@@ -86,3 +86,48 @@ Because this project is built using CrewAI's modern `Flow` architecture and reli
    ```
 
 Once deployed successfully, your Custom Resume Flow will be available to trigger via the CrewAI Cloud Dashboard or their remote execution APIs.
+
+---
+
+## Running the API Server
+
+Start the backend API server with:
+
+```bash
+uv run python server.py
+```
+
+The server will start on http://localhost:8000
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /health | Health check |
+| POST | /api/preprocess/linkedin | Scrape LinkedIn profile → returns profile_json |
+| POST | /api/preprocess/github | Scrape GitHub repos → returns repos_markdown |
+| POST | /api/generate | Run full resume generation using preprocessed data |
+
+### Example usage
+
+```bash
+# Step 1: Preprocess LinkedIn
+curl -X POST http://localhost:8000/api/preprocess/linkedin \
+  -H "Content-Type: application/json" \
+  -d '{"linkedin_url": "https://linkedin.com/in/yourprofile"}'
+
+# Step 2: Preprocess GitHub
+curl -X POST http://localhost:8000/api/preprocess/github \
+  -H "Content-Type: application/json" \
+  -d '{"github_handle": "yourgithubhandle"}'
+
+# Step 3: Generate resume (using results from steps 1 & 2)
+curl -X POST http://localhost:8000/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "linkedin_json": "<profile_json from step 1>",
+    "repos_markdown": "<repos_markdown from step 2>",
+    "job_url": "https://linkedin.com/jobs/view/1234567890",
+    "github_handle": "yourgithubhandle"
+  }'
+```

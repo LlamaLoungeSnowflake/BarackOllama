@@ -9,6 +9,7 @@ dependencies = [
     "composio-crewai>=0.11.1",
     "crewai>=1.9.3",
     "fastapi>=0.134.0",
+    "uvicorn>=0.34.0",
     "litellm>=1.30.0",
     "python-dotenv>=1.0.0",
     "weasyprint>=68.1",
