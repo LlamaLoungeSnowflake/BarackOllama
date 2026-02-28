@@ -7,7 +7,7 @@ def create_github_crew() -> Crew:
     Creates and returns the GitHub Crew instance.
     """
     llm = LLM(
-        model="openrouter/deepseek/deepseek-r1",
+        model=os.getenv("OPENROUTER_MODEL", "openrouter/minimax/minimax-m2.5"),
         base_url="https://openrouter.ai/api/v1",
         api_key=os.getenv("OPENROUTER_API_KEY")
     )
