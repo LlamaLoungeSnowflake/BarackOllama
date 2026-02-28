@@ -43,7 +43,7 @@ export default function PortfolioTab({ html }: PortfolioTabProps) {
       <iframe
         srcDoc={html}
         title="Portfolio Preview"
-        sandbox="allow-scripts"
+        sandbox=""
         className="w-full h-[600px] rounded-lg border border-gray-200"
       />
     </div>
