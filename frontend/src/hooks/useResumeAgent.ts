@@ -1,14 +1,26 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import type { ResumeOutput, AgentStep } from '@/types/resume'
 
-interface RunAgentParams {
-  githubUrl: string
-  linkedinUrl: string
-  jobUrl: string
-  cachedLinkedin?: object | null
-  cachedGithub?: string | null
+export type ConversationState =
+  | 'greeting'
+  | 'waiting_github'
+  | 'waiting_linkedin'
+  | 'waiting_job'
+  | 'generating'
+  | 'done'
+  | 'error'
+
+export type ChatMessage = {
+  id: string
+  role: 'user' | 'bot'
+  type: 'text' | 'progress' | 'output' | 'typing'
+  content?: string
+  steps?: AgentStep[]
+  isRunning?: boolean
+  output?: ResumeOutput
+  timestamp: number
 }
 
 const MOCK_OUTPUT: ResumeOutput = {
@@ -124,7 +136,7 @@ DevOps:    Docker · AWS · GitHub Actions
       title: 'Full-Stack Engineer',
       company: 'Vercel',
       matchPercent: 88,
-      whyItFits: 'Next.js expertise aligns perfectly with Vercel\'s product stack',
+      whyItFits: "Next.js expertise aligns perfectly with Vercel's product stack",
       requiredSkills: ['Next.js', 'Node.js', 'TypeScript'],
       applyUrl: 'https://vercel.com/careers',
     },
@@ -164,46 +176,217 @@ DevOps:    Docker · AWS · GitHub Actions
   ],
 }
 
-const MOCK_STEPS: AgentStep[] = [
-  { id: '1', tool: 'brightdata_linkedin', status: 'done', message: 'Successfully scraped LinkedIn profile', timestamp: Date.now() },
-  { id: '2', tool: 'composio_github', status: 'done', message: 'Read 12 GitHub repositories', timestamp: Date.now() + 2000 },
-  { id: '3', tool: 'crewai_extract', status: 'done', message: 'Extracted skills, experience and education', timestamp: Date.now() + 4000 },
-  { id: '4', tool: 'pydantic_validate', status: 'done', message: 'All data validated successfully', timestamp: Date.now() + 5000 },
-  { id: '5', tool: 'latex_generate', status: 'done', message: 'LaTeX resume generated', timestamp: Date.now() + 7000 },
-  { id: '6', tool: 'pdf_compile', status: 'done', message: 'PDF compiled successfully', timestamp: Date.now() + 9000 },
-  { id: '7', tool: 'portfolio_generate', status: 'done', message: 'Portfolio page built', timestamp: Date.now() + 11000 },
-  { id: '8', tool: 'job_search', status: 'done', message: 'Found 5 matching job opportunities', timestamp: Date.now() + 13000 },
+const MOCK_STEP_DEFS = [
+  { tool: 'brightdata_linkedin', message: 'Successfully scraped LinkedIn profile' },
+  { tool: 'composio_github', message: 'Read 12 GitHub repositories' },
+  { tool: 'crewai_extract', message: 'Extracted skills, experience and education' },
+  { tool: 'pydantic_validate', message: 'All data validated successfully' },
+  { tool: 'latex_generate', message: 'LaTeX resume generated' },
+  { tool: 'pdf_compile', message: 'PDF compiled successfully' },
+  { tool: 'portfolio_generate', message: 'Portfolio page built' },
+  { tool: 'job_search', message: 'Found 5 matching job opportunities' },
+  { tool: 'keyword_hitl', message: 'Keywords confirmed' },
 ]
 
+let _msgCounter = 0
+function nextId() {
+  return `msg-${++_msgCounter}-${Date.now()}`
+}
+
+function botText(content: string): ChatMessage {
+  return { id: nextId(), role: 'bot', type: 'text', content, timestamp: Date.now() }
+}
+
+function isGithubUrl(url: string) {
+  return /^https?:\/\/(www\.)?github\.com\/.+/i.test(url.trim())
+}
+
+function isLinkedinUrl(url: string) {
+  return /^https?:\/\/(www\.)?linkedin\.com\/.+/i.test(url.trim())
+}
+
+function isUrl(url: string) {
+  try {
+    new URL(url.trim())
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function useResumeAgent() {
-  const [isRunning, setIsRunning] = useState(false)
-  const [agentSteps, setAgentSteps] = useState<AgentStep[]>([])
-  const [output, setOutput] = useState<ResumeOutput | null>(null)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [conversationState, setConversationState] = useState<ConversationState>('greeting')
+  const [isTyping, setIsTyping] = useState(false)
+  const [githubUrl, setGithubUrl] = useState('')
+  const [linkedinUrl, setLinkedinUrl] = useState('')
 
-  const run = useCallback(async (_params: RunAgentParams) => {
-    setIsRunning(true)
-    setAgentSteps([])
-    setOutput(null)
-
-    // Simulate agent steps with delays (mock mode — replace with real CopilotKit integration)
-    for (let i = 0; i < MOCK_STEPS.length; i++) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 1500))
-      setAgentSteps((prev) => [
-        ...prev,
-        { ...MOCK_STEPS[i], status: 'done', timestamp: Date.now() },
-      ])
+  // Greeting on mount
+  useEffect(() => {
+    const greeting: ChatMessage = {
+      id: nextId(),
+      role: 'bot',
+      type: 'text',
+      content:
+        "👋 Hi! I'm Barack Ollama. I'll generate a tailored resume for you.\nLet's start — what's your GitHub profile URL?",
+      timestamp: Date.now(),
     }
-
-    await new Promise<void>((resolve) => setTimeout(resolve, 500))
-    setOutput(MOCK_OUTPUT)
-    setIsRunning(false)
+    setMessages([greeting])
+    setConversationState('waiting_github')
   }, [])
+
+  const addMessage = useCallback((msg: ChatMessage) => {
+    setMessages((prev) => [...prev, msg])
+  }, [])
+
+  const runAgent = useCallback(
+    async (github: string, linkedin: string, job: string) => {
+      setConversationState('generating')
+
+      // Show "Starting generation..." text bubble
+      const startMsg = botText('Great! Starting resume generation now…')
+      addMessage(startMsg)
+
+      await new Promise<void>((r) => setTimeout(r, 600))
+
+      // Add a progress bubble
+      const progressId = nextId()
+      const progressMsg: ChatMessage = {
+        id: progressId,
+        role: 'bot',
+        type: 'progress',
+        steps: [],
+        isRunning: true,
+        timestamp: Date.now(),
+      }
+      setMessages((prev) => [...prev, progressMsg])
+
+      // Simulate steps
+      const accSteps: AgentStep[] = []
+      for (let i = 0; i < MOCK_STEP_DEFS.length; i++) {
+        await new Promise<void>((r) => setTimeout(r, 800))
+        accSteps.push({
+          id: String(i + 1),
+          tool: MOCK_STEP_DEFS[i].tool,
+          status: 'done',
+          message: MOCK_STEP_DEFS[i].message,
+          timestamp: Date.now(),
+        })
+        const updatedSteps = [...accSteps]
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === progressId ? { ...m, steps: updatedSteps } : m,
+          ),
+        )
+      }
+
+      // Mark progress bubble complete
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === progressId ? { ...m, isRunning: false } : m,
+        ),
+      )
+
+      await new Promise<void>((r) => setTimeout(r, 500))
+
+      // Add output bubble
+      const outputMsg: ChatMessage = {
+        id: nextId(),
+        role: 'bot',
+        type: 'output',
+        output: MOCK_OUTPUT,
+        timestamp: Date.now(),
+      }
+      addMessage(outputMsg)
+      setConversationState('done')
+
+      // suppress unused var warnings — these would be used in real API calls
+      void github
+      void linkedin
+      void job
+    },
+    [addMessage],
+  )
+
+  const sendMessage = useCallback(
+    async (text: string) => {
+      const userMsg: ChatMessage = {
+        id: nextId(),
+        role: 'user',
+        type: 'text',
+        content: text.trim(),
+        timestamp: Date.now(),
+      }
+      addMessage(userMsg)
+
+      if (conversationState === 'waiting_github') {
+        if (!isGithubUrl(text)) {
+          setIsTyping(true)
+          await new Promise<void>((r) => setTimeout(r, 600))
+          setIsTyping(false)
+          addMessage(botText("Hmm, that doesn't look like a GitHub URL. Can you double-check the URL?"))
+          return
+        }
+        setGithubUrl(text.trim())
+        setIsTyping(true)
+        await new Promise<void>((r) => setTimeout(r, 600))
+        setIsTyping(false)
+        addMessage(botText('Got it! Now your LinkedIn profile URL?'))
+        setConversationState('waiting_linkedin')
+        return
+      }
+
+      if (conversationState === 'waiting_linkedin') {
+        if (!isLinkedinUrl(text)) {
+          setIsTyping(true)
+          await new Promise<void>((r) => setTimeout(r, 600))
+          setIsTyping(false)
+          addMessage(botText("Hmm, that doesn't look like a LinkedIn URL. Can you double-check the URL?"))
+          return
+        }
+        setLinkedinUrl(text.trim())
+        setIsTyping(true)
+        await new Promise<void>((r) => setTimeout(r, 600))
+        setIsTyping(false)
+        addMessage(botText('Perfect. Finally, paste the job posting URL you\'re targeting.'))
+        setConversationState('waiting_job')
+        return
+      }
+
+      if (conversationState === 'waiting_job') {
+        if (!isUrl(text)) {
+          setIsTyping(true)
+          await new Promise<void>((r) => setTimeout(r, 600))
+          setIsTyping(false)
+          addMessage(botText("Hmm, that doesn't look like a valid URL. Can you double-check the URL?"))
+          return
+        }
+        await runAgent(githubUrl, linkedinUrl, text.trim())
+        return
+      }
+    },
+    [conversationState, githubUrl, linkedinUrl, addMessage, runAgent],
+  )
 
   const reset = useCallback(() => {
-    setIsRunning(false)
-    setAgentSteps([])
-    setOutput(null)
+    _msgCounter = 0
+    setMessages([])
+    setConversationState('greeting')
+    setIsTyping(false)
+    setGithubUrl('')
+    setLinkedinUrl('')
+    const greeting: ChatMessage = {
+      id: nextId(),
+      role: 'bot',
+      type: 'text',
+      content:
+        "👋 Hi! I'm Barack Ollama. I'll generate a tailored resume for you.\nLet's start — what's your GitHub profile URL?",
+      timestamp: Date.now(),
+    }
+    setMessages([greeting])
+    setConversationState('waiting_github')
   }, [])
 
-  return { run, isRunning, agentSteps, output, reset }
+  return { messages, conversationState, sendMessage, isTyping, reset }
 }
+

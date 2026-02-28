@@ -36,15 +36,15 @@ export default function AgentProgressLog({ steps, isRunning }: AgentProgressLogP
   }, [steps])
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+    <div>
+      <p className="text-xs font-semibold text-gray-500 mb-2 flex items-center gap-1.5">
         {isRunning && (
-          <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
         )}
         Agent Progress
-      </h3>
+      </p>
 
-      <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
+      <div className="space-y-1.5">
         {steps.map((step) => (
           <div
             key={step.id}
