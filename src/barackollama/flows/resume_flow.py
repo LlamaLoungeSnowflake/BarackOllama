@@ -26,6 +26,7 @@ class ResumeFlowState(BaseModel):
     resume_html: str = ""
     resume_pdf_path: str = ""
     portfolio_repo_name: str = ""
+    resume_file_prefix: str = ""
 
 class ResumeFlow(Flow[ResumeFlowState]):
     """
@@ -93,13 +94,17 @@ class ResumeFlow(Flow[ResumeFlowState]):
         resume_crew = create_resume_crew()
         
         # Determine URLs predictably since deployment hasn't happened yet
+        import re
+        import time
+        match = re.search(r'/view/(\d+)', self.state.job_url)
+        job_id = match.group(1) if match else "job"
+        timestamp = int(time.time()) % 100000
+        
         if not self.state.portfolio_repo_name:
-            import re
-            import time
-            match = re.search(r'/view/(\d+)', self.state.job_url)
-            job_id = match.group(1) if match else "job"
-            timestamp = int(time.time()) % 100000
             self.state.portfolio_repo_name = f"custom-portfolio-{job_id}-{timestamp}"
+            
+        if not self.state.resume_file_prefix:
+            self.state.resume_file_prefix = f"resume-{job_id}-{timestamp}"
 
         if not self.state.github_profile_url:
             self.state.github_profile_url = f"https://github.com/{self.state.github_handle}/{self.state.github_handle}"
@@ -138,7 +143,8 @@ class ResumeFlow(Flow[ResumeFlowState]):
             "portfolio_website_code": self.state.portfolio_website_code,
             "resume_html": self.state.resume_html,
             "github_handle": self.state.github_handle,
-            "portfolio_repo_name": self.state.portfolio_repo_name
+            "portfolio_repo_name": self.state.portfolio_repo_name,
+            "resume_file_name": f"{self.state.resume_file_prefix}.html"
         })
         
         try:
@@ -157,8 +163,8 @@ class ResumeFlow(Flow[ResumeFlowState]):
         output_dir = "output"
         os.makedirs(output_dir, exist_ok=True)
         
-        html_path = os.path.join(output_dir, "resume.html")
-        pdf_path = os.path.join(output_dir, "resume.pdf")
+        html_path = os.path.join(output_dir, f"{self.state.resume_file_prefix}.html")
+        pdf_path = os.path.join(output_dir, f"{self.state.resume_file_prefix}.pdf")
         
         # Write the HTML output for inspection
         with open(html_path, "w", encoding="utf-8") as f:
