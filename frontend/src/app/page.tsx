@@ -1,53 +1,59 @@
 'use client'
 
-import InputPanel from '@/components/InputPanel'
-import AgentProgressLog from '@/components/AgentProgressLog'
-import OutputTabs from '@/components/OutputTabs'
+import { useEffect, useRef } from 'react'
 import { useResumeAgent } from '@/hooks/useResumeAgent'
+import ChatMessage from '@/components/ChatMessage'
+import TypingIndicator from '@/components/TypingIndicator'
+import ChatInput from '@/components/ChatInput'
 
 export default function HomePage() {
-  const { run, isRunning, agentSteps, output, reset } = useResumeAgent()
+  const { messages, conversationState, isTyping, sendMessage } = useResumeAgent()
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isTyping])
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🦙</span>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">BarackOllama</h1>
-              <p className="text-sm text-gray-500">AI-Powered Resume Generator</p>
-            </div>
+    <div className="flex flex-col h-screen bg-gray-50">
+      {/* Fixed header */}
+      <header className="fixed top-0 left-0 right-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+          <div className="w-8 h-8 bg-gray-900 rounded-full flex items-center justify-center text-white text-sm">
+            🤖
           </div>
-          {output && (
-            <button
-              onClick={reset}
-              className="text-sm text-gray-500 hover:text-gray-700 underline"
-            >
-              Start over
-            </button>
-          )}
+          <div>
+            <div className="font-semibold text-gray-900">Barack Ollama</div>
+            <div className="text-xs text-gray-500">AI Resume Generator</div>
+          </div>
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Left panel — 40% */}
-          <div className="w-full lg:w-2/5 space-y-4">
-            <InputPanel onSubmit={run} isGenerating={isRunning} />
-            {agentSteps.length > 0 && (
-              <AgentProgressLog steps={agentSteps} isRunning={isRunning} />
-            )}
-          </div>
-
-          {/* Right panel — 60% */}
-          <div className="w-full lg:w-3/5">
-            <OutputTabs output={output} isGenerating={isRunning} />
-          </div>
+      {/* Scrollable messages */}
+      <main className="flex-1 overflow-y-auto pt-20 pb-24">
+        <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col gap-4">
+          {messages.map((msg) => (
+            <ChatMessage key={msg.id} message={msg} />
+          ))}
+          {isTyping && (
+            <div className="flex items-start gap-2">
+              <div className="shrink-0 w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm">
+                🤖
+              </div>
+              <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-sm">
+                <TypingIndicator />
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
         </div>
       </main>
+
+      {/* Fixed chat input */}
+      <ChatInput
+        onSend={sendMessage}
+        isDisabled={conversationState === 'generating'}
+      />
     </div>
   )
 }
