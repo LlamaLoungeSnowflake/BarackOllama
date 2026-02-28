@@ -86,6 +86,35 @@ class ResumeFlow(Flow[ResumeFlowState]):
         except Exception as e:
             print(f"Asset Generation parsing warning: {e}")
 
+    @listen(generate_assets)
+    def generate_resume_html(self):
+        print("Generating final highly-tailored resume in HTML...")
+        resume_crew = create_resume_crew()
+        
+        # Determine URLs predictably since deployment hasn't happened yet
+        if not self.state.github_profile_url:
+            self.state.github_profile_url = f"https://github.com/{self.state.github_handle}/{self.state.github_handle}"
+        if not self.state.portfolio_website_url:
+            self.state.portfolio_website_url = f"https://github.com/{self.state.github_handle}/custom-portfolio"
+            
+        result = resume_crew.kickoff(inputs={
+            "job_listing_data": str(self.state.job_listing_data),
+            "linkedin_profile": self.state.linkedin_profile,
+            "ranked_repos": str(self.state.ranked_repos),
+            "github_profile_url": self.state.github_profile_url,
+            "portfolio_website_url": self.state.portfolio_website_url
+        })
+        
+        try:
+            resume_output = result.pydantic
+            if resume_output:
+                self.state.resume_html = resume_output.resume_html
+            else:
+                self.state.resume_html = result.raw
+        except Exception as e:
+            print(f"Resume parsing warning: {e}")
+            self.state.resume_html = result.raw
+
     @listen(generate_resume_html)
     def deploy_assets(self):
         print("Deploying assets to GitHub via Composio...")
@@ -111,29 +140,6 @@ class ResumeFlow(Flow[ResumeFlowState]):
                 self.state.github_profile_url = f"https://github.com/{self.state.github_handle}/{self.state.github_handle}"
         except Exception as e:
              print(f"Deploy parsing warning: {e}")
-
-    @listen(generate_assets)
-    def generate_resume_html(self):
-        print("Generating final highly-tailored resume in HTML...")
-        resume_crew = create_resume_crew()
-        
-        result = resume_crew.kickoff(inputs={
-            "job_listing_data": str(self.state.job_listing_data),
-            "linkedin_profile": self.state.linkedin_profile,
-            "ranked_repos": str(self.state.ranked_repos),
-            "github_profile_url": self.state.github_profile_url,
-            "portfolio_website_url": self.state.portfolio_website_url
-        })
-        
-        try:
-            resume_output = result.pydantic
-            if resume_output:
-                self.state.resume_html = resume_output.resume_html
-            else:
-                self.state.resume_html = result.raw
-        except Exception as e:
-            print(f"Resume parsing warning: {e}")
-            self.state.resume_html = result.raw
 
     @listen(generate_resume_html)
     def compile_pdf(self):
