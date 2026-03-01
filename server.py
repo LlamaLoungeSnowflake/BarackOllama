@@ -27,65 +27,70 @@ app.add_middleware(
 )
 
 
-class LinkedInPreprocessRequest(BaseModel):
-    linkedin_url: str
+from typing import List, Optional, Any, Dict
+from copilotkit import CopilotKitSDK, Action
+from copilotkit.agent import Agent as CopilotAgent
+from copilotkit.types import Message, TextMessage
+from copilotkit.integrations.fastapi import add_fastapi_endpoint
+from barackollama.crews.tools_crew import create_chat_crew
 
+class CrewAIAgent(CopilotAgent):
+    def __init__(self, name: str, description: str, crew: Any):
+        super().__init__(name=name, description=description)
+        self.crew = crew
 
-class GitHubPreprocessRequest(BaseModel):
-    github_handle: str
+    async def execute(
+        self,
+        *,
+        state: dict,
+        messages: List[Message],
+        thread_id: Optional[str] = None,
+        node_name: Optional[str] = None,
+        actions: Optional[List[Dict[str, Any]]] = None,
+    ):
+        """Execute the CrewAI flow based on the latest message."""
+        # Get the latest user message
+        user_message_text = ""
+        for msg in reversed(messages):
+            if isinstance(msg, TextMessage) and msg.role == "user":
+                user_message_text = msg.content
+                break
 
+        # If there's no message, just return current state
+        if not user_message_text:
+            return
 
-class GenerateRequest(BaseModel):
-    linkedin_json: str
-    repos_markdown: str
-    job_url: str
-    github_handle: str
+        # We append the user's message as input so the agent context receives it.
+        try:
+            result = self.crew.kickoff(inputs={"user_message": user_message_text})
+            
+            # Create the assistant text response
+            yield TextMessage(
+                id="crewai-response",
+                role="assistant",
+                content=result.raw
+            )
+        except Exception as e:
+            yield TextMessage(
+                id="crewai-error",
+                role="assistant",
+                content=f"An error occurred: {str(e)}"
+            )
 
+# Create the top-level chat crew
+my_crew = create_chat_crew()
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+# Create the CopilotKit Agent wrapping the Crew
+my_agent = CrewAIAgent(
+    name="default",
+    crew=my_crew,
+    description="Barack Ollama Career Portfolio Architect"
+)
 
+# Create CopilotKit SDK with the Agent
+sdk = CopilotKitSDK(agents=[my_agent])
 
-@app.post("/api/preprocess/linkedin")
-def preprocess_linkedin(request: LinkedInPreprocessRequest):
-    try:
-        result = kickoff_linkedin_flow(request.linkedin_url)
-        return {"profile_json": str(result)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/preprocess/github")
-def preprocess_github(request: GitHubPreprocessRequest):
-    try:
-        result = kickoff_github_scrape_flow(request.github_handle)
-        return {"repos_markdown": str(result)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/generate")
-def generate(request: GenerateRequest):
-    try:
-        result = kickoff_resume_flow(
-            request.linkedin_json,
-            request.repos_markdown,
-            request.job_url,
-            request.github_handle,
-        )
-        return {
-            "status": "ok",
-            "resume_html": result.get("resume_html", ""),
-            "github_profile_markdown": result.get("github_profile_markdown", ""),
-            "portfolio_website_code": result.get("portfolio_website_code", ""),
-            "github_profile_url": result.get("github_profile_url", ""),
-            "portfolio_website_url": result.get("portfolio_website_url", ""),
-            "resume_pdf_path": result.get("resume_pdf_path", ""),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+add_fastapi_endpoint(app, sdk, "/copilotkit")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

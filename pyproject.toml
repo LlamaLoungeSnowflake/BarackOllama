@@ -13,6 +13,7 @@ dependencies = [
     "litellm>=1.30.0",
     "python-dotenv>=1.0.0",
     "weasyprint>=68.1",
+    "copilotkit[crewai]>=0.1.17",
 ]
 
 [build-system]

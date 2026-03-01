@@ -2,14 +2,47 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python: Debug main.py",
+      "name": "Backend: Uvicorn API Server",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/main.py",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "console": "integratedTerminal",
+      "module": "uvicorn",
+      "args": [
+        "server:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
       "justMyCode": true,
-      "envFile": "${workspaceFolder}/.env"
+      "console": "integratedTerminal",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src:${PYTHONPATH}"
+      }
+    },
+    {
+      "name": "Frontend: Next.js Dev Server",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "cwd": "${workspaceFolder}/frontend",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack: BarackOllama",
+      "configurations": [
+        "Backend: Uvicorn API Server",
+        "Frontend: Next.js Dev Server"
+      ],
+      "stopAll": true
     }
   ]
 }
